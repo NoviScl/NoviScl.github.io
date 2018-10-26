@@ -23,8 +23,8 @@ description: Personal Homepage
 
 # List of links in the navigation bar
 navbar-links:
-  Blog: ""
   Home: "index"
+  Blog: "blogs/index"
   Publications: "publications"
 #  Resume: "CV.pdf"
 nav-search: "search"
