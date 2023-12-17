@@ -25,3 +25,10 @@ p {
 a:hover {
     text-decoration: underline;
 }
+
+.responsive-img {
+  width: 250px;   /* Fixed width */
+  height: 250px;  /* Fixed height */
+  object-fit: cover; /* Cover the container without distorting aspect ratio */
+}
+
