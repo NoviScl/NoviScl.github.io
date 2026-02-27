@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <link rel="stylesheet" href="../css/font-awesome.min.css">
+  <link rel="stylesheet" href="../css/academicons.min.css">
+  <link href="../css/css2" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+
+  <title>POST TITLE</title>
+
+  <style>
+    .post-meta { opacity: 0.75; margin-bottom: 1.25rem; }
+    .post-content { margin-top: 1rem; }
+    .post-content h4 { margin-top: 1.5rem; }
+    .post-content pre {
+      background: #f6f8fa;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.95em;
+    }
+    /* Optional: make MathJax blocks a bit tighter on mobile */
+    mjx-container[jax="CHTML"][display="true"] { overflow-x: auto; overflow-y: hidden; }
+  </style>
+
+  <!-- MathJax (no build step). -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <div class="container pt-3">
+    <div class="row">
+      <div class="col-md-8 offset-md-2">
+        <a href="../">[home]</a> &nbsp;
+        <a href="./">[blog]</a>
+
+        <br><br>
+        <h3>POST TITLE</h3>
+        <div class="post-meta">YYYY-MM-DD</div>
+
+        <div class="post-content">
+          <p>
+            Start writing here. Inline math: $p(x)$.
+          </p>
+
+          $$\mathcal{L}(\theta) = \mathbb{E}_{x \sim p(x)}[\log p_\theta(x)].$$
+
+          <h4>Section title</h4>
+          <p>
+            More text.
+          </p>
+
+          <pre><code>// code here</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+

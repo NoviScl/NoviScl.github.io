@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <link rel="stylesheet" href="../css/font-awesome.min.css">
+  <link rel="stylesheet" href="../css/academicons.min.css">
+  <link href="../css/css2" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+
+  <title>Learning about RL (Part 1)</title>
+
+  <style>
+    .post-meta { opacity: 0.75; margin-bottom: 1.25rem; }
+    .post-content { margin-top: 1rem; }
+    .post-content h4 { margin-top: 1.5rem; }
+    .post-content pre {
+      background: #f6f8fa;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.95em;
+    }
+
+    /* Lightweight "algorithm block" that still allows MathJax rendering. */
+    .algo-block{
+      background:#f6f8fa;
+      border:1px solid rgba(0,0,0,0.08);
+      border-radius:6px;
+      padding:0.75rem 1rem;
+      margin:1rem 0;
+    }
+    .algo-title{
+      font-weight:600;
+      margin-bottom:0.5rem;
+    }
+    .algo-body{
+      margin:0;
+      padding-left:1.2rem;
+      list-style:none;
+    }
+    .algo-body li{ margin:0.25rem 0; list-style:none; }
+  </style>
+
+  <!-- MathJax (no build step). Supports $...$ and $$...$$ by default with this config. -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <div class="container pt-3">
+    <div class="row">
+      <div class="col-md-8 offset-md-2">
+        <a href="../">[home]</a> &nbsp;
+        <a href="./">[blog]</a>
+
+        <br><br>
+        <h3>Learning about RL (Part 1)</h3>
+        <div class="post-meta">2026-02-23</div>
+
+        <div class="contents" style="margin-bottom:1.5rem;">
+          <b>Contents</b>
+          <ul>
+            <li><a href="#mdp">Markov Decision Process</a></li>
+            <li><a href="#value-iteration">Value Iteration</a></li>
+          </ul>
+        </div>
+
+        <a id="mdp"></a>
+
+        <div class="post-content">
+          <p>
+          <b>Markov Decision Process</b><br>
+          Let's start by defining the Markov Decision Process (MDP).
+          Suppose we have a set of states $S$, a set of actions $A$, a transition function $P(s'|s, a)$, a reward function $R(s, a, s')$, a discount factor $\gamma$, a start state $s_0$, and the number of steps (i.e., Horizon) $H$.
+          </p>
+
+          <p>
+            <img src="images/MDP.png" alt="Markov Decision Process diagram" style="max-width:100%;margin:1.5rem 0;">
+          </p>
+
+          The MDP is illustrated in the above diagram, where the agent starts at state $s_0$, and takes action $a$ at state $s$, then the environment transitions to state $s'$ with probability $P(s'|s, a)$, and the agent receives reward $R(s, a, s')$. The goal is to find the optimal policy $\pi$ that maximizes the expected reward: $$V^*(s) = \max_{\pi} \mathbb{E} \left[ \sum_{t=0}^{H} \gamma^t R(s_t, a_t, s_{t+1}) \mid s_0 = s \right]$$
+
+          where $V^*(s)$ is the optimal value function (i.e., sum of discounted rewards when starting from state $s$ to the end of the horizon $H$ under the optimal policy $\pi^*$).
+
+          <br><br>
+
+          <a id="value-iteration"></a>
+          <b>Value Iteration</b><br>
+
+          Let's start by thinking about how to compute the optimal value recursively :
+          <ul>
+            <li>
+              $V_0^*(s)$ denotes the optimal value for state $s$ when the horizon $H = 0$. Since the horizon is 0, there's no action to take, and we will just assume the value of doing nothing is 0 in this case: $V_0^*(s) = 0 \quad \forall s$.
+            </li>
+            <li>
+              $V_1^*(s)$ denotes the optimal value for state $s$ when the horizon $H = 1$. The agent can take one action, and we should choose the action that maximizes reward after taking that action (note that the transition is not deterministic so we need to consider all possible next states $s'$):<br>
+              $$V_1^*(s) = \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_0^*(s') \right]$$
+            </li>
+            <li>
+              Similarly, we can recursively define $V_2^*(s)$ as:
+              $$V_2^*(s) = \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_1^*(s') \right]$$
+            </li>
+            <li>
+              In general, we can recursively define $V_k^*(s)$ as:
+              $$V_k^*(s) = \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_{k-1}^*(s') \right]$$
+              This is known as the Bellman equation for $V_k^*(s)$.
+            </li>
+          </ul>
+
+          We can therefore write out the value iteration algorithm as follows:
+          <br>
+
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Value Iteration (finite horizon)</div>
+            <ol class="algo-body">
+              <li>Initialize: $V_0^*(s) \leftarrow 0 \;\; \forall s$.</li>
+              <li>For $k = 1, \ldots, H$: 
+                <ul>
+                  <li>for each state $s \in S$, update:</li>
+                </ul>
+              <li>
+                $$V_k^*(s) = \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_{k-1}^*(s') \right]$$
+              </li>
+              <li>
+                $$\pi_k^*(s) = \arg \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_{k-1}^*(s') \right]$$
+              </li>
+            </ol>
+          </div>
+
+          In this setting, value iteration is guaranteed to converge to the optimal value function $V^*(s)$. To see why, let us denote $V^*_H(s)$ as the optimal value for $H$ steps, and $V^*(s)$ as the optimal value for infinite steps. The additional reward collected over additional time steps $H+1, H+2, \ldots$ is:
+          $$\gamma^{H+1} R(s_{H+1}) + \gamma^{H+2} R(s_{H+2}) + \ldots \leq \gamma^{H+1} R_{max} + \gamma^{H+2} R_{max} + \ldots = \frac{\gamma^{H+1}}{1-\gamma} R_{max}$$ 
+
+          Since $0 < \gamma < 1$, the additional reward goes to 0 as $H$ goes to infinity. 
+          <br><br>
+
+          <b>References:</b><br>
+          <ul>
+            <li>
+              <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>
+            </li>
+            <li>
+              <a href="https://web.stanford.edu/class/cs234/modules.html">Stanford CS234 by Emma Brunskill</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
