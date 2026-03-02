@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="../css/style.css">
 
-  <title>Learning about RL (Part 1)</title>
+  <title>Learning RL (Part 1)</title>
 
   <style>
     .post-meta { opacity: 0.75; margin-bottom: 1.25rem; }
@@ -73,7 +73,7 @@
         <a href="./">[blog]</a>
 
         <br><br>
-        <h3>Learning about RL (Part 1)</h3>
+        <h3>Learning RL (Part 1)</h3>
         <div class="post-meta">2026-02-23</div>
 
         <div class="contents" style="margin-bottom:1.5rem;">
@@ -81,11 +81,14 @@
           <ul>
             <li><a href="#mdp">Markov Decision Process</a></li>
             <li><a href="#value-iteration">Value Iteration</a></li>
+            <li><a href="#policy-iteration">Policy Iteration</a></li>
+            <li><a href="#max-entropy-rl">Max-Entropy RL</a></li>
           </ul>
         </div>
 
-        <a id="mdp"></a>
+        I'm taking a break from research this quarter and decided that it's a good time revisit some of the fundamental topics. I'm starting this blog series to document my learning notes, and we will start with RL. This blog starts from the basic MDP formulation and goes all the way to PPO, and the content will be largely based on <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>.
 
+        <a id="mdp"></a>
         <div class="post-content">
           <p>
           <b>Markov Decision Process</b><br>
@@ -93,7 +96,7 @@
           Suppose we have a set of states $S$, a set of actions $A$, a transition function $P(s'|s, a)$, a reward function $R(s, a, s')$, a discount factor $\gamma$, a start state $s_0$, and the number of steps (i.e., Horizon) $H$.
           </p>
 
-          <p>
+          <p style="text-align: center;">
             <img src="images/MDP.png" alt="Markov Decision Process diagram" style="max-width:100%;margin:1.5rem 0;">
           </p>
 
@@ -130,21 +133,24 @@
           <br>
 
           <div class="algo-block">
-            <div class="algo-title">Algorithm: Value Iteration (finite horizon)</div>
+            <div class="algo-title">Algorithm: Value Iteration</div>
             <ol class="algo-body">
               <li>Initialize: $V_0^*(s) \leftarrow 0 \;\; \forall s$.</li>
               <li>For $k = 1, \ldots, H$: 
                 <ul>
                   <li>for each state $s \in S$, update:</li>
-                </ul>
               <li>
                 $$V_k^*(s) = \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_{k-1}^*(s') \right]$$
               </li>
               <li>
+                where the optimal policy can be extracted as:
                 $$\pi_k^*(s) = \arg \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V_{k-1}^*(s') \right]$$
               </li>
+              </ul>
             </ol>
           </div>
+
+          where the optimal policy is simply greedy with respect to the value function.
 
           In this setting, value iteration is guaranteed to converge to the optimal value function $V^*(s)$. To see why, let us denote $V^*_H(s)$ as the optimal value for $H$ steps, and $V^*(s)$ as the optimal value for infinite steps. The additional reward collected over additional time steps $H+1, H+2, \ldots$ is:
           $$\gamma^{H+1} R(s_{H+1}) + \gamma^{H+2} R(s_{H+2}) + \ldots \leq \gamma^{H+1} R_{max} + \gamma^{H+2} R_{max} + \ldots = \frac{\gamma^{H+1}}{1-\gamma} R_{max}$$ 
@@ -152,6 +158,105 @@
           Since $0 < \gamma < 1$, the additional reward goes to 0 as $H$ goes to infinity. 
           <br><br>
 
+          We can do Q-value iteration in a similar way.
+          We define $Q^*(s, a)$ as the expected utility starting in state $s$, taking action $a$, and then following the optimal policy. We can write out the Bellman equation for $Q^*(s, a)$ as:
+          $$Q^*(s, a) = \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma \max_{a'} Q^*(s', a') \right]$$
+
+          We can easily plug this into the value iteration algorithm to get the Q-value iteration algorithm, where the update step does:
+          $$Q_k^*(s, a) = \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma \max_{a'} Q_{k-1}^*(s', a') \right]$$
+          And the optimal policy is greedy with respect to the Q-value function:
+          $$\pi_k^*(s) = \arg \max_{a} Q_k^*(s, a)$$
+
+
+          <a id="policy-iteration"></a>
+          <b>Policy Iteration</b><br>
+
+          For a given policy $\pi(s)$, if it's deterministic, we can evaluate the value function $V^\pi(s)$ as:
+          $$V^\pi(s) = \sum_{s'} P(s'|s, \pi(s)) \left[ R(s, \pi(s), s') + \gamma V^\pi_{k-1}(s') \right]$$
+
+          And if the policy is stochastic where $\pi(a|s)$ is the probability of taking action $a$ in state $s$, we can evaluate the value function $V^\pi(s)$ as:
+          $$V^\pi(s) = \sum_{a} \pi(a|s) \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V^\pi(s') \right]$$
+
+          Previously in value iteration and Q-value iteration, there's no explicit policy update step: we always adopt a greedy policy and only update the value (or Q-value) function. In the policy iteration algorithm, we alternate between policy evaluation and policy improvement steps:
+
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Policy Iteration</div>
+            <ol class="algo-body">
+              <li>Initialize $\pi(s)$ arbitrarily for all $s \in S$.</li>
+              <li>Loop:
+                <ul>
+                  <li>Policy evaluation for current policy $\pi_k(s)$, iterate until convergence: 
+                    $$V^{\pi_k}_{i+1}(s) \leftarrow \sum_{s'} P(s'|s, \pi_k(s)) \left[ R(s, \pi_k(s), s') + \gamma V^{\pi_k}_i(s') \right]$$</li>
+                  <li>Policy improvement (with fixed value function, find best action for one-step lookahead): 
+                    $$\pi_{k+1}(s) \leftarrow \arg \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V^{\pi_k}_i(s') \right]$$
+                  </li>
+                  <li>Repeat until convergence.</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          The crucial difference between policy iteration and value iteration is that policy iteration would fix the current policy first and update the value function until convergence, and then update the policy based on the fixed value function. On the other hand, value iteration just keeps doing the Bellman update until convergence.
+
+          <br><br>
+          <a id="max-entropy-rl"></a>
+          <b>Max-Entropy RL</b><br>
+          Reminder entropy measures uncertainty and is computed as: 
+          $$H(p) = \sum_i p(x_i) \log \frac{1}{p(x_i)} = - \sum_i p(x_i) \log p(x_i)$$
+
+          While the regular formualtion of RL aims to find (ignoring the discount factor):
+          $$\max_{\pi} \mathbb{E} \left[ \sum_{t=0}^{H} R_t \right]$$
+
+          The max entropy formulation aims to find:
+          $$\max_{\pi} \mathbb{E} \left[ \sum_{t=0}^{H} ( R_t + \beta H(\pi(\cdot|s_t)) ) \right]$$
+
+          This helps us find a distribution of near-optimal policies rather than collapsing to one. 
+          To solve it, let's first quickly recap constrained optimization. Suppose we want to solve: 
+          $$\max_{x} f(x) \quad \text{subject to} \quad g(x) = 0$$
+
+          The Lagrangian is:
+          $$\mathcal{L}(x, \lambda) = f(x) + \lambda g(x)$$
+          and the dual problem is:
+          $$\min_{\lambda} \max_{x} \mathcal{L}(x, \lambda) = \min_{\lambda} \max_{x} f(x) + \lambda g(x)$$
+          
+          At the optimal point, the gradient of the Lagrangian with respect to $x$ should be 0:
+          $$\frac{\partial \mathcal{L(x, \lambda)}}{\partial x} = 0, \quad \frac{\partial \mathcal{L(x, \lambda)}}{\partial \lambda} = 0$$
+
+          If we plug this into an one-step max-ent RL objective, we get:
+          $$\max_{\pi(a)} E[r(a)] + \beta H(\pi(\cdot|s)) = \max_{\pi(a)} \sum_{a} \pi(a) r(a) - \beta \sum_{a} \pi(a) \log \pi(a)$$
+          $$\min_{\lambda} \max_{\pi(a)} \mathcal{L(\pi(a), \lambda)} = \sum_{a} \pi(a) r(a) - \beta \sum_{a} \pi(a) \log \pi(a) + \lambda (\sum_{a} \pi(a) - 1)$$
+          Solve for $\pi(a)$ by setting the gradient to 0, we get:
+
+          $$\pi(a) = \frac{1}{Z} \text{exp}(\frac{1}{\beta} r(a)), \quad Z = \sum_{a} \text{exp}(\frac{1}{\beta} r(a))$$
+          Plugging this back into the objective, we get the optimal value: 
+          $$V = \beta \log \sum_{a} \text{exp}(\frac{1}{\beta} r(a))$$
+
+          Now let's consider the multi-step case. Our objective is:
+
+          $$\max_{\pi} \mathbb{E} \left[ \sum_{t=0}^{H} ( r_t + \beta H(\pi(\cdot|s_t)) ) \right]$$
+
+          As in value iteration, we can write out the Bellman equation for the value function:
+          \begin{align*}
+          V_k(s) 
+            &= \max_{\pi} \mathbb{E}\left[ \sum_{t = (H-k)}^{H} \left( r_t + \beta H(\pi(a_t \mid s_t)) \right) \right] \\
+            &= \max_{\pi} \mathbb{E}\left[ r(s, a) + \beta H(\pi(a \mid s)) + \gamma V_{k-1}(s') \right] \\
+            &= \max_{\pi} \mathbb{E}\left[ Q_k(s,a) + \beta H(\pi (a \mid s)) \right] \\
+          \end{align*}
+
+          where $Q_k(s,a) = E [r(s, a) + V_{k-1}(s')]$.
+
+          The above reduces to the one-step case with $Q$ instead of $r$. We can directly trasnscribe the solution:
+
+          $$V_k(s) = \beta \log \sum_{a} \text{exp}(\frac{1}{\beta} Q_k(s,a))$$
+          $$\pi_k(a|s) = \frac{1}{Z_k} \text{exp}(\frac{1}{\beta} Q_k(s,a)), \quad Z_k = \sum_{a} \text{exp}(\frac{1}{\beta} Q_k(s,a))$$
+
+          You can recognize that this is taking the softmax of the Q-value function:
+          $$\pi_k(a|s) = \text{softmax}(\frac{1}{\beta} Q_k(s,a))$$
+
+          where $\beta$ functions like a temperature parameter. When $\beta \to 0$, the policy becomes greedy. When $\beta \to \infty$, the policy becomes uniform.
+
+
+          <br><br>
           <b>References:</b><br>
           <ul>
             <li>
@@ -161,6 +266,7 @@
               <a href="https://web.stanford.edu/class/cs234/modules.html">Stanford CS234 by Emma Brunskill</a>
             </li>
           </ul>
+          <br><br>
         </div>
       </div>
     </div>
