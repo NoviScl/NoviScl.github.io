@@ -73,7 +73,7 @@
         <a href="./">[blog]</a>
 
         <br><br>
-        <h3>Learning RL (Part 1)</h3>
+        <h3>Learning RL (Part 1): From Tabular Methods to DQN</h3>
         <div class="post-meta">2026-02-23</div>
 
         <div class="contents" style="margin-bottom:1.5rem;">
@@ -83,10 +83,11 @@
             <li><a href="#value-iteration">Value Iteration</a></li>
             <li><a href="#policy-iteration">Policy Iteration</a></li>
             <li><a href="#max-entropy-rl">Max-Entropy RL</a></li>
+            <li><a href="#dqn">Q Learning</a></li>
           </ul>
         </div>
 
-        I'm taking a break from research this quarter and decided that it's a good time revisit some of the fundamental topics. I'm starting this blog series to document my learning notes, and we will start with RL. This blog starts from the basic MDP formulation and goes all the way to PPO, and the content will be largely based on <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>.
+        I'm taking a break from research this quarter and decided that it's a good time revisit some of the fundamental topics. I'm starting this blog series to document my learning notes, and we will start with RL. This blog starts from the basic tabular setting and goes all the way to DQN, and the content will be largely based on <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>.
 
         <a id="mdp"></a>
         <div class="post-content">
@@ -255,6 +256,88 @@
 
           where $\beta$ functions like a temperature parameter. When $\beta \to 0$, the policy becomes greedy. When $\beta \to \infty$, the policy becomes uniform.
 
+          <br><br>
+          <a id="dqn"></a>
+          <b>Q Learning</b><br>
+          In the tabular setting so far (finite number of states and actions), remember we defined Q-value as the expected return you’ll get if you start in state $s$ and take action $a$ now. You can get the optimal Q-value (i.e., following the optimal policy after taking action $a$) by using the Bellman equation:
+          $$Q^*(s,a) = \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma \max_{a'} Q^*(s', a') \right]$$
+
+          Based on this, we have the Q-value iteration algorithm:
+          $$Q_{k+1}(s,a) \leftarrow E_{s' \sim P(s'|s, a)}[R(s, a, s') + \gamma \max_{a'} Q_k(s', a')]$$
+
+          Instead of enumerating all possible next states $s'$, we can use a sample-based approach to estimate the Q-value: 
+
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Tabular Q-Learning</div>
+            <ol class="algo-body">
+              <li>Start with $Q_0(s,a)$ for all $s,a$.</li>
+              <li>Get initial state $s$.</li>
+              <li>For $k=0,1,2,\ldots$ till convergence:
+                <ul>
+                  <li>Sample action $a$ and get next state $s'$.</li>
+                  <li>If $s'$ is terminal:</li>
+                    <ul>
+                      <li>target = $R(s,a,s')$</li>
+                      <li>Sample new initial state $s'$.</li>
+                    </ul>
+                  <li>If $s'$ is not terminal:</li>
+                    <ul>
+                      <li>target = $R(s,a,s') + \gamma \max_{a'} Q_k(s', a')$</li>
+                    </ul>
+                  <li>$Q_{k+1}(s,a) \leftarrow (1 - \alpha)Q_k(s,a) + \alpha [\text{target}] \quad$ (moving average update)</li>
+                  <li>Set $s \leftarrow s'$.</li>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          Note that tabular Q-learning is <i>model-free</i>, i.e., we don't need to know the transition model $P(s'|s, a)$. This is the main difference between tabular Q-learning and Q-value iteration, and it allows us to learn the Q-value function from data in unknown or complex environments.
+
+          When sampling actions, we usually use an $\epsilon$-greedy policy: choose a random action with probability $\epsilon$ and choose the greedy action with probability $1-\epsilon$.
+
+          <br><br>
+          This means that Q-learning is an <i>off-policy</i> algorithm, i.e., we are using the greedy action to update the Q-value function, but we are sampling actions from a different policy (the $\epsilon$-greedy policy). Nevertheless, it still converges to the optimal Q-value function as long as we satisfy the following two conditions:
+          <ul>
+            <li>All states and actions are visited infinitely often.</li>
+            <li>The learning rate $\alpha$ decays appropriately such that for each $(s,a)$ pair: $\sum_{t=0}^{\infty} \alpha_t(s,a) = \infty$ and $\sum_{t=0}^{\infty} \alpha_t^2(s,a) < \infty$.</li>
+          </ul>
+
+          Now let's think beyond the tabular setting. Enumerating all states is impossible for more complex environments, and so instead of learning a table of Q-values, we need a parameterized Q function $Q_\theta(s,a)$ (e.g., a neural network). We can still compute the target in a similar way:
+          $$\text{target} = R(s,a,s') + \gamma \max_{a'} Q_{\theta_k}(s', a')$$
+
+          But the update rule is now to fit update the parameters of the neural network to fit the target:
+          $$\theta_{k+1} \leftarrow \theta_k - \alpha \nabla_{\theta} [\frac{1}{2} (Q_{\theta_k}(s,a) - \text{target}(s'))^2]$$
+
+          Combining this with experience replay, we get the Deep Q-Learning algorithm from the DeepMind <a href="https://arxiv.org/abs/1312.5602" target="_blank">DQN paper</a>:
+          
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Deep Q-Learning with Experience Replay</div>
+            <ol class="algo-body">
+              <li>Initialize replay memory $D$ to capacity $N$.</li>
+              <li>Initialize action-value function $Q$ with random weights.</li>
+              <li>For episode = 1, ..., $M$, do:
+                <ul>
+                  <li>Initialize sequence $s_1 = {x_1}$ and preprocessed sequence $\phi_1 = \phi(s_1)$.</li>
+                  <li>For $t=1, \ldots, T$, do:</li>
+                    <ul>
+                      <li>With probability $\epsilon$ select a random action $a_t$,</li>
+                      <li>otherwise select $a_t = \arg \max_{a} Q( \phi(s_t), a; \theta )$.</li>
+                      <li>Execute action $a_t$ in emulator and observe reward $r_t$ and next screen $x_{t+1}$.</li>
+                      <li>Set $s_{t+1} = s_t, a_t, x_{t+1}$ and preprocess $\phi_{t+1} = \phi(s_{t+1})$.</li>
+                      <li>Store transition $( \phi_t, a_t, r_t, \phi_{t+1} )$ in $D$.</li>
+                      <li>Sample random minibatch of transitions $( \phi_j, a_j, r_j, \phi_{j+1} )$ from $D$.</li>
+                      <li>Set $y_j =$ &#123; <br>
+                        &nbsp;&nbsp; $r_j$ &nbsp; &nbsp; for terminal $\phi_{j+1}$ <br>
+                        &nbsp;&nbsp; $r_j + \gamma \max_{a'} Q(\phi_{j+1}, a'; \theta)$ &nbsp; otherwise <br>
+                      &#125;</li>
+                      <li>Perform a gradient descent step on $(y_j - Q(\phi_j, a_j; \theta))^2$.</li>
+                    </ul>
+                  <li>end for</li>
+                </ul>
+                <li>end for</li>
+              </li>
+            </ol>
+          </div>
 
           <br><br>
           <b>References:</b><br>

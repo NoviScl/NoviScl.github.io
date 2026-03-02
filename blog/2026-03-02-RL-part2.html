@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <link rel="stylesheet" href="../css/font-awesome.min.css">
+  <link rel="stylesheet" href="../css/academicons.min.css">
+  <link href="../css/css2" rel="stylesheet">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+
+  <title>Learning RL (Part 1)</title>
+
+  <style>
+    .post-meta { opacity: 0.75; margin-bottom: 1.25rem; }
+    .post-content { margin-top: 1rem; }
+    .post-content h4 { margin-top: 1.5rem; }
+    .post-content pre {
+      background: #f6f8fa;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.95em;
+    }
+
+    /* Lightweight "algorithm block" that still allows MathJax rendering. */
+    .algo-block{
+      background:#f6f8fa;
+      border:1px solid rgba(0,0,0,0.08);
+      border-radius:6px;
+      padding:0.75rem 1rem;
+      margin:1rem 0;
+    }
+    .algo-title{
+      font-weight:600;
+      margin-bottom:0.5rem;
+    }
+    .algo-body{
+      margin:0;
+      padding-left:1.2rem;
+      list-style:none;
+    }
+    .algo-body li{ margin:0.25rem 0; list-style:none; }
+  </style>
+
+  <!-- MathJax (no build step). Supports $...$ and $$...$$ by default with this config. -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <div class="container pt-3">
+    <div class="row">
+      <div class="col-md-8 offset-md-2">
+        <a href="../">[home]</a> &nbsp;
+        <a href="./">[blog]</a>
+
+        <br><br>
+        <h3>Learning RL (Part 2): From Policy Gradients to PPO</h3>
+        <div class="post-meta">2026-03-02</div>
+
+        <div class="contents" style="margin-bottom:1.5rem;">
+          <b>Contents</b>
+          <ul>
+            <li><a href="#policy-gradients">Policy Gradients</a></li>
+            <li><a href="#ppo">PPO</a></li>
+          </ul>
+        </div>
+
+        <a id="policy-gradients"></a>
+        <div class="post-content">
+          <p>
+          <b>Policy Gradients</b><br>
+          Let $\tau$ denote a state-action trajectory $\tau = (s_0, a_0, s_1, a_1, \ldots, s_H, a_H)$. We denote the reward of the trajectory as $R(\tau) = \sum_{t=0}^{H} R(s_t, a_t)$. The expected utitlity given a policy $\pi_\theta$ is:
+
+          $$U(\theta) = E [\sum_{t=0}^{H} R(s_t, a_t) \mid \pi_\theta] = \sum_{\tau} P(\tau \mid \pi_\theta) R(\tau)$$
+          
+          Our goal is to find the policy $\pi_\theta$ that maximizes the expected utility $U(\theta)$:
+
+          $$\max_{\theta} U(\theta) = \max_{\theta} \sum_{\tau} P(\tau \mid \pi_\theta) R(\tau)$$
+
+          Taking the gradient of the expected utility with respect to the policy parameters $\theta$, we get:
+
+          \[
+          \begin{align*}
+          \nabla_{\theta} U(\theta)
+              &= \nabla_{\theta} \sum_{\tau} P(\tau \mid \pi_\theta) R(\tau) \\
+              &= \sum_{\tau} \nabla_{\theta} P(\tau \mid \pi_\theta) R(\tau) \\
+              &= \sum_{\tau} \frac{P(\tau \mid \pi_\theta)}{P(\tau \mid \pi_\theta)} \nabla_{\theta} P(\tau \mid \pi_\theta) R(\tau) \\
+              &= \sum_{\tau} P(\tau \mid \pi_\theta) \frac{\nabla_{\theta} P(\tau \mid \pi_\theta)}{P(\tau \mid \pi_\theta)} R(\tau) \\
+              &= \sum_{\tau} P(\tau \mid \pi_\theta) \nabla_{\theta} \log P(\tau \mid \pi_\theta) R(\tau) \\
+              &= E_{\tau \sim P(\tau \mid \pi_\theta)}\left[ \nabla_{\theta} \log P(\tau \mid \pi_\theta) R(\tau) \right]
+          \end{align*}
+          \]
+
+          <br><br>
+          <b>References:</b><br>
+          <ul>
+            <li>
+              <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>
+            </li>
+            <li>
+              <a href="https://web.stanford.edu/class/cs234/modules.html">Stanford CS234 by Emma Brunskill</a>
+            </li>
+          </ul>
+          <br><br>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
