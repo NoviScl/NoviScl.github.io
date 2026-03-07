@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="../css/style.css">
 
-  <title>Learning RL (Part 1)</title>
+  <title>Learning RL (Part 2)</title>
 
   <style>
     .post-meta { opacity: 0.75; margin-bottom: 1.25rem; }
@@ -80,7 +80,8 @@
           <b>Contents</b>
           <ul>
             <li><a href="#policy-gradients">Policy Gradients</a></li>
-            <li><a href="#ppo">PPO</a></li>
+            <li><a href="#advantage-estimation">Advantage Estimation</a></li>
+            <li><a href="#trpo-ppo">TRPO & PPO</a></li>
           </ul>
         </div>
 
@@ -109,6 +110,115 @@
               &= E_{\tau \sim P(\tau \mid \pi_\theta)}\left[ \nabla_{\theta} \log P(\tau \mid \pi_\theta) R(\tau) \right]
           \end{align*}
           \]
+
+          We can estimate the gradient by sampling trajectories from the policy:
+          $$\nabla_{\theta} U(\theta) \approx \frac{1}{N} \sum_{i=1}^{N} \nabla_{\theta} \log P(\tau_i \mid \pi_\theta) R(\tau_i)$$
+
+          We can do temporal decomposition on $\nabla_{\theta} \log P(\tau \mid \pi_\theta)$:
+
+          \[
+          \begin{align*}
+          \nabla_{\theta} \log P(\tau \mid \pi_\theta)
+              &= \nabla_{\theta} \log [ \prod_{t=0}^{H} P(s_{t+1} \mid s_t, a_t) \pi_\theta(a_t \mid s_t) ] \\
+              &= \nabla_{\theta} [\sum_{t=0}^{H} \log P(s_{t+1} \mid s_t, a_t) + \sum_{t=0}^{H} \log \pi_\theta(a_t \mid s_t) ]\\
+              &= \nabla_{\theta} \sum_{t=0}^{H} \log \pi_\theta(a_t \mid s_t) \\
+              &= \sum_{t=0}^{H} \nabla_{\theta} \log \pi_\theta(a_t \mid s_t) \\
+          \end{align*}
+          \]
+
+          The key insight here is that the environment dynamics is independent of the policy, and so its gradient will be zero and can be factored out.
+          
+          <br><br>
+          Next we will consider baseline subtraction to reduce the variance of the gradient estimate. Suppose we have a baseline $b$:
+
+          $$\nabla U(\theta) \approx \hat{g} = \frac{1}{N} \sum_{i=1}^{N} \nabla_{\theta} \log P(\tau_i \mid \pi_\theta) (R(\tau_i) - b)$$
+
+          We will first show that this is still an unbiased estimate of the gradient:
+
+          \[
+          \begin{align*}
+          E[ \nabla_{\theta} \log P(\tau \mid \pi_\theta) b ]
+              &= \sum_{\tau} P(\tau \mid \pi_\theta) \nabla_{\theta} \log P(\tau \mid \pi_\theta) b \\
+              &= \sum_{\tau} P(\tau \mid \pi_\theta) \frac{\nabla_{\theta} P(\tau \mid \pi_\theta)}{P(\tau \mid \pi_\theta)} b \\
+              &= \sum_{\tau} \nabla_{\theta} P(\tau \mid \pi_\theta) b \\
+              &= b \nabla_{\theta} (\sum_{\tau} P(\tau \mid \pi_\theta)) \\
+              &= b \nabla_{\theta} (1) \\
+              &= 0 \\
+          \end{align*}
+          \]
+
+          This holds as long as $b$ does not depend on $\tau$. Another trick is that we can do temporal decomposition on the reward too:
+
+          \[
+          \begin{align*}
+          \hat{g} &= \frac{1}{N} \sum_{i=1}^{N} \nabla_{\theta} \log P(\tau_i \mid \pi_\theta) (R(\tau_i) - b) \\
+          &= \frac{1}{N} \sum_{i=1}^{N} (\sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i)) (\sum_{t=0}^{H-1} R(s_t^i, a_t^i) - b) \\
+          &= \frac{1}{N} \sum_{i=1}^{N} (\sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i)) ((\sum_{k=0}^{t-1} R(s_k^i, a_k^i)) + (\sum_{k=t}^{H-1} R(s_k^i, a_k^i)) - b) \\
+          \end{align*}
+          \]
+
+          The past rewards don't depend on the currect action $a_t$ we can drop that part without changing the expectation, and obtain our unbiased lower-variance estimator:
+
+          $$\hat{g} = \frac{1}{N} \sum_{i=1}^{N} (\sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i)) (\sum_{k=t}^{H-1} R(s_k^i, a_k^i) - b(s_t^i))$$
+
+          where the baseline $b$ can be dependent on the state $s_t$ (but doesn't have to). In fact, there are a couple common choices for $b$. The first choice to use the average reward across all trajectories:
+
+          $$b = \frac{1}{N} \sum_{i=1}^{N} R(\tau_i)$$
+
+          The second choice to use the state-dependent expected return (i.e., the value function):
+          
+          $$b(s_t) = E [R_t + R_{t+1} + \ldots + R_{H-1} \mid s_t] = V^\pi(s_t)$$
+         
+          There are two ways to estimate the value function, either through Monte Carlo or Bootstrapping.
+
+          <div class="algo-block">
+            <div class="algo-title">Monte Carlo Estimation of V(s)</div>
+            <ol class="algo-body">
+              <li>Initialize $V_{\phi_0}^{\pi}$</li>
+              <li>Collect trajectories $\tau_1, \ldots, \tau_N$</li>
+              <li>Regress against empirical returns:</li>
+              $$\phi_{i+1} \leftarrow \arg \min_{\phi} \frac{1}{N} \sum_{i=1}^{N} \sum_{t=0}^{H-1} (V_{\phi}^{\pi}(s_t^i) - (\sum_{k=t}^{H-1} R(s_k^i, a_k^i)))^2$$
+            </ol>
+          </div>
+
+          <div class="algo-block">
+            <div class="algo-title">Bootstrap Estimation of V(s)</div>
+            <ol class="algo-body">
+              <li>Initialize $V_{\phi_0}^{\pi}$</li>
+              <li>Collect data $\{s, a, s', r(s, a, s')\}$</li>
+              <li>V-iteration:</li>
+              $$\phi_{i+1} \leftarrow \arg \min_{\phi} \sum_{(s, a, s', r)} (r + \gamma V_{\phi_i}^{\pi}(s') - V_{\phi}^{\pi}(s))^2 + \lambda \| \phi - \phi_i \|_2^2$$
+            </ol>
+          </div>
+
+          Putting it all together, we get a version of the vanilla policy gradient algorithm:
+
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Policy Gradient</div>
+            <ol class="algo-body">
+              <li>Initialize policy parameters $\theta$ and baseline $b$</li>
+              <li>For iteration = $1, 2, \ldots, $ do:
+                <ul>
+                  <li>Collect trajectories by executing the current policy</li>
+                  <li>At each timestep in each trajectory, compute:</li>
+                    <ul>
+                      <li>$R_t = \sum_{k=t}^{H-1} \gamma^{k-t} R(s_k, a_k)$</li>
+                      <li>$\hat{A}_t = R_t - b(s_t)$
+                    </ul>
+                  <li>Re-fit the baseline by minimizing $\sum_{i} \sum_{t} \| b(s_t) - R_t^i \|^2$ over all trajectories and timesteps in the batch (Monte Carlo Estimation)</li>
+                  <li>Update the policy using the policy gradient estimate:</li>
+                    <ul>
+                      <li>$\hat{g} = \frac{1}{N} \sum_{i=1}^{N} \sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i) \hat{A}_t^i$</li>
+                      <li>$\theta \leftarrow \theta + \alpha \hat{g} \quad$ (plug $\hat{g}$ into SGD or Adam)</li>
+                    </ul>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          
+
+
 
           <br><br>
           <b>References:</b><br>
