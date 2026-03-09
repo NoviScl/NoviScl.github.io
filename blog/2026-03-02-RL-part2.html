@@ -301,8 +301,105 @@
         <div class="post-content">
           <p>
           <b>TRPO & PPO</b><br>
+          Let's first introduce importance sampling. Suppose we want to know the expected outcome of a distribution $p(x)$, but we can only sample from a different distribution $q(x)$, we can use importance sampling to estimate the expected outcome of $p(x)$ by:
+
+          $$E_{x \sim p(x)}[f(x)] = E_{x \sim q(x)}[\frac{p(x)}{q(x)} f(x) ]$$
+
+          where the term $\frac{p(x)}{q(x)}$ is the importance weight. Now let's denote the policy that we use to collect data as $\pi_{\theta_{\text{old}}}$ and the policy that we want to update as $\pi_\theta$ (before any gradient updates, these two are the same). We sampled trajectories $\tau$ from the old policy and obtained the returns on them, and we want to use this data to estimate the expected return of the new policy. We can do so via importance sampling:
+
+          $$U(\theta) = E_{\tau \sim \pi_{\theta_{\text{old}}}}[\frac{P(\tau \mid \pi_\theta)}{P(\tau \mid \pi_{\theta_{\text{old}}})} R(\tau)]$$
+
+          If we take its gradient: 
+
+          \begin{align*}
+          \nabla_{\theta} U(\theta) &= E_{\tau \sim \pi_{\theta_{\text{old}}}}[\frac{\nabla_{\theta} P(\tau \mid \pi_\theta)}{P(\tau \mid \pi_{\theta_{\text{old}}})} R(\tau)] \\
+          \nabla_{\theta} U(\theta) \mid_{\theta = \theta_{\text{old}}} &=  E_{\tau \sim \pi_{\theta_{\text{old}}}}[\frac{\nabla_{\theta} P(\tau \mid \pi_\theta) \mid_{\theta = \theta_{\text{old}}}}{P(\tau \mid \pi_{\theta_{\text{old}}})} R(\tau)] \\
+          &= E_{\tau \sim \pi_{\theta_{\text{old}}}} [\nabla_{\theta} \log P(\tau \mid \pi_\theta)\mid_{\theta = \theta_{\text{old}}} R(\tau)]\\
+          \end{align*}
+
+          This is telling us: when evaluated at $\theta_{\text{old}}$, the gradient of our objective $U(\theta)$ is exactly the policy gradient form we've seen before.
+          Now we introduce the surrogate objective of TRPO: 
+
+          $$\max_{\pi} L(\pi) = E_{s,a \sim \pi_{\text{old}}} \left[\frac{\pi(a | s)}{\pi_{\text{old}}(a | s)} A^{\pi_{\text{old}}}(s,a)\right]$$
+          $$\text{s.t.} \;\; E_{\pi_{\text{old}}} [KL(\pi(\cdot|s) || \pi_{\text{old}}(\cdot | s) )] \leq \delta $$
+
+          This surrogate is a local first-order approximation of the true return $U(\theta)$ around the old policy (note that here we are reweighting the action choice at a given old-policy state, rather than reweighting the whole trajectories). The full TRPO algorithm looks like:
+          
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Trust Region Policy Optimization</div>
+            <ol class="algo-body">
+              <li>For each iteration $k = 1, 2, \ldots$ do:
+                <ul>
+                  <li>Run policy for T timesteps or N trajectories</li>
+                  <li>Estimate advantage function at all timesteps</li>
+                  <li>Compute policy gradient $g$</li>
+                  <li>Use conjugate gradient (with Hessian-vector products) to compute $F^{-1}g$</li>
+                  <li>Do line search on surrogate loss and KL constraint</li>
+                </ul>
+              </li>
+              <li>End for</li>
+            </ol>
+          </div>
+
+          In fact, we don't really need to worry about all the conjugate gradient and line search stuff here, because we can massively simplify this algorithm by replacing the hard KL constraint with a soft KL penalty directly in the objective:
+
+          $$\max_\theta \hat{\mathbb{E}}_t [\frac{\pi_\theta (a_t | s_t)}{\pi_{\theta_{\text{old}}}(a_t | s_t)} \hat{A}_t - \beta KL[\pi_{\theta}(\cdot | s_t), \pi_{\theta_{\text{old}}}(\cdot | s_t)]]$$
+
+          Below the the PPO algorithm with adaptive KL penalty. 
+
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: PPO with adaptive KL penalty</div>
+            <ol class="algo-body">
+              <li>Initialize policy parameters $\theta_0$, initial KL penalty $\beta_0$, target KL divergence $\delta$</li>
+              <li>For each iteration $k = 0, 1, 2, \ldots$ do:
+                <ul>
+                  <li>Collect a set of (partial) trajectories $\mathcal{D_k}$ using current policy $\pi_{\theta_k}$</li>
+                  <li>Estimate advantages $\hat{A}_t^{\pi_{\theta_k}}$ using any advantage estimation algorithm</li>
+                  <li>Compute policy update:
+                    $$
+                    \theta_{k+1} \leftarrow \arg \max_{\theta} \frac{1}{|\mathcal{D}|}\sum_t \left[ 
+                      \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_k}(a_t|s_t)} \hat{A}_t 
+                      - \beta_k \, \bar{D}_{\text{KL}}[\pi_{\theta}(\cdot|s_t) \,||\, \pi_{\theta_k}(\cdot|s_t)\big]
+                    \right]
+                    $$
+                  </li>
+                  <li>by taking K steps of minibatch SGD (via Adam)</li>
+                  <li>if $\bar{D}_{\text{KL}}(\theta_{k+1} || \theta_{k}) \geq 1.5 \delta$ then:</li>
+                  <ul>
+                    <li>$\beta_{k+1} = 2 \beta_k$</li>
+                  </ul>
+                  <li>else if $\bar{D}_{\text{KL}}(\theta_{k+1} || \theta_{k}) \leq \delta / 1.5$ then:</li>
+                  <ul>
+                    <li>$\beta_{k+1} = \beta_{k} / 2$</li>
+                  </ul>
+                </ul>
+              </li>
+              <li>End for</li>
+            </ol>
+          </div>
+
+          Note that we are using reverse KL throughout the derivation to be consistent with the modern standard, despite that the original TRPO and PPO papers used forward KL. We will elaborate more on KL later.
+          Instead of incorporating KL in the objective and directly maximizing it, another alternative approach is to use the clipped objective. Let $r_t(\theta) = \frac{\pi_\theta(a_t | s_t)}{\pi_{\theta_k}(a_t | s_t)}$, then:
+
+          $$L_{\theta_k}^{CLIP} = \hat{\mathbb{E}}_t [\min (r_t(\theta) \hat{A}_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) \hat{A}_t)]$$
+
+          where $\epsilon$ is a hyper-parameter (usually $\epsilon=0.2$), and the policy update would be to do gradient ascent on this clipped objective. To reason about this clipping intuitively, suppose $A > 0$, meaning the advantage for the state-action is positive, then the optimization wants to make $\pi_\theta(a | s)$ larger, but there's no additional benefit to increase it beyond $(1+\epsilon)$ because L will be bounded by $\min (\frac{\pi_\theta(a | s)}{\pi_{\theta_k}(a | s)}, (1+\epsilon)) A$. Similarly, when $A \leq 0$, the optimization wants to make $\pi_\theta(a | s)$ smaller, but L will be bounded by $\max (\frac{\pi_\theta(a | s)}{\pi_{\theta_k}(a | s)}, (1-\epsilon)) A$. The figure below illustrates this idea (left: when $A > 0$; right: when $A < 0$). <br>
+
+          <p style="text-align: center;">
+            <img src="images/clip.png" alt="clipping diagram" style="max-width:100%;margin:1.5rem 0;">
+          </p>
+
           </p>
         </div>
+      
+        <a id="kl-estimator"></a>
+        <div class="post-content">
+          <p>
+          <b>KL Estimator</b><br>
+        
+        </p>
+        </div>
+      
 
 
 
