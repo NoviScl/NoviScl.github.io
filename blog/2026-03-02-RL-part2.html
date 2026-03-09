@@ -80,8 +80,9 @@
           <b>Contents</b>
           <ul>
             <li><a href="#policy-gradients">Policy Gradients</a></li>
-            <li><a href="#advantage-estimation">Advantage Estimation</a></li>
+            <li><a href="#advantage-estimation">Advantage Estimation (Actor-Critic & GAE)</a></li>
             <li><a href="#trpo-ppo">TRPO & PPO</a></li>
+            <li><a href="#kl-estimator">KL Estimator</a></li>
           </ul>
         </div>
 
@@ -194,7 +195,7 @@
           Putting it all together, we get a version of the vanilla policy gradient algorithm:
 
           <div class="algo-block">
-            <div class="algo-title">Algorithm: Policy Gradient</div>
+            <div class="algo-title">Algorithm: Policy Gradient (REINFORCE with baseline)</div>
             <ol class="algo-body">
               <li>Initialize policy parameters $\theta$ and baseline $b$</li>
               <li>For iteration = $1, 2, \ldots, $ do:
@@ -216,7 +217,92 @@
             </ol>
           </div>
 
+        
+        <a id="advantage-estimation"></a>
+        <div class="post-content">
+          <p>
+          <b>Advantage Estimation</b><br>
+
+          Looking back at our policy gradient estimate:
+
+          $$\hat{g} = \frac{1}{N} \sum_{i=1}^{N} \sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i) (\sum_{k=t}^{H-1} R(s_k^i, a_k^i) - V^\pi(s_t^i))$$
+
+          The term $\sum_{k=t}^{H-1} R(s_k^i, a_k^i)$ is the single-sample estimate of the Q-value: $Q^\pi(s_t^i, a_t^i)$ (ignoring the discount factors). This is the pure Monte Carlo way of estimating the Q-value. It is unbiased but has high variance, and requires waiting until the end of the trajectory. Alternatively, we can also use Bootstrapping to estimate the Q-value, and let's write it out incorporating the discount factor $\gamma$ too:
+
+          \begin{align*}
+          Q^{\pi}(s, a) 
+            &= E[r_0 + \gamma r_1 + \gamma^2 r_2 + \ldots \mid s_0=s, a_0=a] \quad (\text{Monte Carlo}) \\
+            &= E[r_0 + \gamma V^\pi(s_1) \mid s_0=s, a_0=a] \\
+            &= E[r_0 + \gamma r_1 + \gamma^2 V^\pi(s_2) \mid s_0=s, a_0=a] \\
+            &= E[r_0 + \gamma r_1 + \gamma^2 r_2 + \gamma^3 V^\pi(s_3) \mid s_0=s, a_0=a] \\
+            &= \ldots \\
+          \end{align*}
+
+          <br>
+
+          If we use the 1-step bootstrap estimator: $\hat{Q}(s_t, a_t) = r_t + \gamma V_{\phi}(s_{t+1})$, then our advantage estimate becomes: $\hat{A}(s_t, a_t) = \hat{Q}(s_t, a_t) - V_{\phi}(s_t)$. Plug this into the policy gradient algorithm, we get the following algorithm known as Actor-Critic:
+        
+          <div class="algo-block">
+            <div class="algo-title">Algorithm: Actor-Critic</div>
+            <ol class="algo-body">
+              <li>Initialize policy parameters $\theta$ (actor) and value parameters $\phi$ (critic)</li>
+              <li>For iteration = $1, 2, \ldots,$ do:
+                <ul>
+                  <li>Collect trajectories by executing the current policy $\pi_\theta$</li>
+                  <li>For each timestep in each trajectory, compute the TD target and TD error:</li>
+                  <ul>
+                    <li>$y_t = r_t + \gamma V_\phi(s_{t+1})$</li>
+                    <li>$\delta_t = y_t - V_\phi(s_t) = r_t + \gamma V_\phi(s_{t+1}) - V_\phi(s_t)$</li>
+                  </ul>
+                  <li>Update the critic by regressing onto the TD target (in practice, take a gradient step on the loss):</li>
+                  <ul>
+                    <li>$\phi \leftarrow \arg \min_{\phi} \sum_i \sum_t \left( V_\phi(s_t^i) - \left(r_t^i + \gamma V_{\phi_{\text{old}}}(s_{t+1}^i)\right) \right)^2$</li>
+                  </ul>
+                  <li>Update the actor using the policy gradient estimate with the critic's TD error:</li>
+                  <ul>
+                    <li>$\hat{g} = \frac{1}{N} \sum_{i=1}^{N} \sum_{t=0}^{H-1} \nabla_{\theta} \log \pi_\theta(a_t^i \mid s_t^i)\, \delta_t^i$</li>
+                    <li>$\theta \leftarrow \theta + \alpha \hat{g} \quad$ (plug $\hat{g}$ into SGD or Adam)</li>
+                  </ul>
+                </ul>
+              </li>
+            </ol>
+          </div>
+
+          Note that here we are no longer using the sampled return minus the baseline to estimate the advantage, but rather the TD error (TD: temporal difference). While pure Monte Carlo is unbiased but has high variance, 1-step TD is biased but has lower variance. We can often interpolate between these two. One way to do so is to take the n-step return: $\hat{Q}(s_t, a_t) = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \ldots + \gamma^{n-1} r_{t+n-1} + \gamma^n V_{\phi}(s_{t+n})$, as used in <a href="https://arxiv.org/pdf/1602.01783" target="_blank">A3C</a>.
+
+          Another way to do so is through Generalized Advantage Estimation  <a href="https://arxiv.org/pdf/1506.02438" target="_blank">(GAE)</a>, where instead of taking the n-step TD for a particular value of $n$, we take the weighted average of all the n-step TD. Specifically, if we write out all the n-step TD as:
+
+          \begin{align*}
+          \hat{A}_t^{(1)} \;\; &:=\;\; \delta_t^V                 &&= -V(s_t) + r_t + \gamma V(s_{t+1}) \\
+          \hat{A}_t^{(2)} \;\; &:=\;\; \delta_t^V + \gamma \delta_{t+1}^V &&= -V(s_t) + r_t + \gamma r_{t+1} + \gamma^2 V(s_{t+2}) \\
+          \hat{A}_t^{(3)} \;\; &:=\;\; \delta_t^V + \gamma \delta_{t+1}^V + \gamma^2 \delta_{t+2}^V &&= -V(s_t) + r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \gamma^3 V(s_{t+3}) \\
+          \vdots \\
+          \hat{A}_t^{(\infty)} \;\; &:=\;\; \sum_{l=0}^{\infty} \gamma^l \delta_{t+l}^V &&= -V(s_t) + \sum_{l=0}^{\infty} \gamma^l r_{t+l} \quad (\text{Monte Carlo}) \\
+          \end{align*}
+
+          Then the GAE is defined as the exponentally-weighted average of all these k-step estimators:
+
+          \begin{align*}
+          \hat{A}_t^{\text{GAE}(\gamma, \lambda)} &= (1 - \lambda) (\hat{A}_t^{(1)} + \lambda \hat{A}_t^{(2)} + \lambda^2 \hat{A}_t^{(3)} + \ldots) \\
+          &= (1 - \lambda) (\delta_t^V + \lambda (\delta_t^V + \gamma \delta_{t+1}^V) + \lambda^2 (\delta_t^V + \gamma \delta_{t+1}^V + \gamma^2 \delta_{t+2}^V) + \ldots) \\
+          &= \sum_{l=0}^{\infty} (\gamma \lambda)^l \delta_{t+l}^V \\
+          \end{align*}
+
+          When $\lambda = 1$, the GAE is equivalent to Monte Carlo. When $\lambda = 0$, the GAE is equivalent to the 1-step TD:
+
+          \begin{align*}
+          \text{GAE}(\gamma, 0) : \hat{A}_t \;\; &:=\;\; \delta_t               &&= -V(s_t) + r_t + \gamma V(s_{t+1}) \\
+          \text{GAE}(\gamma, 1) : \hat{A}_t \;\; &:=\;\; \sum_{l=0}^{\infty} \gamma^l \delta_{t+l}^V   &&= -V(s_t) + \sum_{l=0}^{\infty} \gamma^l r_{t+l} \\
+          \end{align*}
+          </p>
+        </div>
           
+        <a id="trpo-ppo"></a>
+        <div class="post-content">
+          <p>
+          <b>TRPO & PPO</b><br>
+          </p>
+        </div>
 
 
 
