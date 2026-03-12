@@ -396,16 +396,40 @@
         <div class="post-content">
           <p>
           <b>KL Estimator</b><br>
-        
+            
+          Let's first discuss forward and reverse KL. 
+
+          <ul>
+            <li>Forward KL: $D_{KL} (P || Q) = E_{x \sim P} [\log \frac{P(x)}{Q(x)}]$
+              where you sample from the true distribution $P$ and see how bad $Q$ (e.g., your model distribution) is at predicting those samples. It penalizes $Q$ heavily when $Q(x)$ is small in regions where $P(x)$ is large, so $Q$ learns to be <b>mode-covering</b>.
+            </li>
+            <li>Reverse KL: $D_{KL} (Q || P) = E_{x \sim Q} [\log \frac{Q(x)}{P(x)}]$ where you sample from your model $Q$ and measure how much those samples disagree with the true $P$. It penalizes $Q$ when it puts probability mass where $P(x)$ is small. Intuitively, it's ok for $Q$ to ignore some parts of $P$ entirely, as long as the areas it does cover have high $P(x)$, so $Q$ learns to be <b>mode-seeking</b>.</li>
+          </ul>
         </p>
         </div>
-      
+        
+        Next, let's talk about the different estimators for approximating KL through Monte Carlo. Let's say we want to estimate $KL[q,p]$ and we denote $r = \frac{p(x)}{q(x)}$. There are three options (summarizing from John's <a href="http://joschu.net/blog/kl-approx.html">blog</a>):
+
+        <ul>
+          <li>
+            $k_1$ estimator: $k_1 = \log \frac{q(x)}{p(x)} = - \log r$. It is unbiased but has high variance: it's negative for half of the samples whereas KL is always non-negative.
+          </li>
+          <li>
+            $k_2$ estimator: $k_2 = \frac{1}{2} (\log \frac{p(x)}{q(x)})^2 = \frac{1}{2} (\log r)^2$. Intuitively, $k_2$ seems to be better because each sample tells you how far apart $p$ and $q$ are, and it's always non-negative. Empirically, $k_2$ does gave much lower variance than $k_1$, while also comes with a low bias.
+          </li>
+          <li>
+            $k_3$ estimator: $k_3 = (r - 1) - \log r$. To see how we derived this: the motivation is to introduce a control variate in $k_1$ to reduce variance, and we notice $\frac{p(x)}{q(x)} - 1 = r - 1$ has zero expectation so for any $\lambda$, $- \log r + \lambda (r - 1)$ is an unbiased estimator of $KL[q, p]$. Then, notice that if we pick $\lambda = 1$, $(r - 1)$ is exactly the tangent line for $\log(r)$ at $r = 1$; we have $\log r \leq r - 1$ for all $r > 0$ and the expression $(r - 1) - \log r$ measures the vertical distance between the tangent line and $\log(r)$. Empirically, $k_3$ estimator is not only unbiased, but also has low variance. 
+          </li>
+        </ul>
 
 
 
           <br><br>
           <b>References:</b><br>
           <ul>
+            <li>
+              <a href="http://joschu.net/blog/kl-approx.html">Approximating KL Divergence by John Schulman</a>
+            </li>
             <li>
               <a href="https://www.youtube.com/playlist?list=PLwRJQ4m4UJjNymuBM9RdmB3Z9N5-0IlY0">Foundations of Deep RL by Pieter Abbeel</a>
             </li>
