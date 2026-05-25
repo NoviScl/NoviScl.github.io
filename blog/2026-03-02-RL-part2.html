@@ -98,7 +98,7 @@
 
           $$\max_{\theta} U(\theta) = \max_{\theta} \sum_{\tau} P(\tau \mid \pi_\theta) R(\tau)$$
 
-          Taking the gradient of the expected utility with respect to the policy parameters $\theta$, we get:
+          We can't directly do gradient ascent on $U(\theta)$ because the trajectory sampling process itself depends on $\theta$. However, taking the gradient of the expected utility with respect to the policy parameters $\theta$, we get:
 
           \[
           \begin{align*}
