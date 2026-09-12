@@ -172,8 +172,14 @@
           <a id="policy-iteration"></a>
           <b>Policy Iteration</b><br>
 
+          <p>Here we assume the discounted infinite-horizon setting ($0 < \gamma < 1$) with a stationary policy. For a given policy, we use a single value function $V^\pi(s)$ that depends only on the state, rather than a separate value function for each number of steps remaining. The indices below count policy updates and value-estimation iterations, not time steps in the environment.</p>
+
+          <p>Specifically, $V^\pi(s)$ is the expected infinite-horizon discounted return starting from state $s$ and following policy $\pi$:</p>
+          $$V^\pi(s) = \mathbb{E}_\pi \left[ \sum_{t=0}^{\infty} \gamma^t R(s_t, a_t, s_{t+1}) \mid s_0 = s \right]$$
+          <p>This value does not depend on when we visit $s$: the policy and the environment's transition and reward functions do not change with time, and there is always an infinite horizon ahead. Strictly speaking, $V^\pi(s)$ denotes the true value, while $V_i^\pi(s)$ denotes the estimate at policy evaluation iteration $i$, which converges to $V^\pi(s)$.</p>
+
           For a given policy $\pi(s)$, if it's deterministic, we can evaluate the value function $V^\pi(s)$ as:
-          $$V^\pi(s) = \sum_{s'} P(s'|s, \pi(s)) \left[ R(s, \pi(s), s') + \gamma V^\pi_{k-1}(s') \right]$$
+          $$V^\pi(s) = \sum_{s'} P(s'|s, \pi(s)) \left[ R(s, \pi(s), s') + \gamma V^\pi(s') \right]$$
 
           And if the policy is stochastic where $\pi(a|s)$ is the probability of taking action $a$ in state $s$, we can evaluate the value function $V^\pi(s)$ as:
           $$V^\pi(s) = \sum_{a} \pi(a|s) \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V^\pi(s') \right]$$
@@ -189,7 +195,7 @@
                   <li>Policy evaluation for current policy $\pi_k(s)$, iterate until convergence: 
                     $$V^{\pi_k}_{i+1}(s) \leftarrow \sum_{s'} P(s'|s, \pi_k(s)) \left[ R(s, \pi_k(s), s') + \gamma V^{\pi_k}_i(s') \right]$$</li>
                   <li>Policy improvement (with fixed value function, find best action for one-step lookahead): 
-                    $$\pi_{k+1}(s) \leftarrow \arg \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V^{\pi_k}_i(s') \right]$$
+                    $$\pi_{k+1}(s) \leftarrow \arg \max_{a} \sum_{s'} P(s'|s, a) \left[ R(s, a, s') + \gamma V^{\pi_k}(s') \right]$$
                   </li>
                   <li>Repeat until convergence.</li>
                 </ul>
@@ -356,4 +362,3 @@
   </div>
 </body>
 </html>
-
